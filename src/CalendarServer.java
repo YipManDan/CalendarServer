@@ -58,8 +58,10 @@ public class CalendarServer {
                 
                 //Create a new thread and handle the connection
                 ClientThread ct = new ClientThread(socket);
-                list.add(ct); //Save client to ArrayList
-                ct.start();
+                if(ct.checkUsername()) {
+                	list.add(ct); //Save client to ArrayList
+                	ct.start();
+                }
             }
             //when server stops
             try
@@ -98,26 +100,8 @@ public class CalendarServer {
         list.remove(index);
         for(int i = list.size()-1; i >= 0; --i) {
             ClientThread ct = list.get(i);
-            whoIsIn(ct);
         }
-    }
-    
-    private synchronized void whoIsIn(ClientThread thread) {
-        /*thread.writeMsg(ChatMessage.MESSAGE, "List of the users connected at " + sdf.format(new Date()) + "\n", null, new UserId(0, "Server"));
-        // scan all the users connected
-        for(int i = 0; i < list.size(); ++i) {
-            ClientThread ct = list.get(i);
-            //writeMsg(ChatMessage.WHOISIN, (i + 1) + ") " + ct.username + " since " + ct.date);
-            if(ct.id == thread.id) {
-                thread.writeUser(ct.username, ct.id, true);
-            }
-            else
-                thread.writeUser(ct.username, ct.id, false);
-
-        }
-        thread.writeMsg(ChatMessage.MESSAGE, "", null, new UserId(0, "Server"));*/
-
-    }
+    }   
     
     // for a client who logoff using the LOGOUT message
     synchronized void remove(int id) {
@@ -138,6 +122,7 @@ public class CalendarServer {
     	for(int i = 0; i < list.size(); i++) {
     		if(event.getMembers().containsKey(list.get(i).username)) {
                 ClientThread ct = list.get(i);
+                event.setTimestamp(new Date());
                 if (!ct.writeMsg(event)) {
                     removeThread(i);
                     appendEvent("Disconnected Client" + i + " : " + ct.username + " removed from list");
@@ -173,21 +158,45 @@ public class CalendarServer {
 	        //Create both Data Stream
 	        try {
 	            out = new ObjectOutputStream(socket.getOutputStream());
-	            in  = new ObjectInputStream(socket.getInputStream());
-	            
-	            // read the username
-	            username = (String) in.readObject();
-	            appendEvent(username + " has connected");
+	            in  = new ObjectInputStream(socket.getInputStream());	            
 	            
 	        } catch (IOException e) {
 	        	appendEvent("Exception creating new Input/output Streams: " + e);
 	            return;
-	        } catch (ClassNotFoundException e) {}
+	        } //catch (ClassNotFoundException e) {}
 
 	        date = new Date().toString() + "\n";
 	    }
 
-	    @Override
+	    public boolean checkUsername() throws ClassNotFoundException, IOException {
+            // read the username
+            username = (String) in.readObject();
+            
+            for(ClientThread cthread : list) {
+            	if(cthread.username.equals(username)) {
+            		out.writeObject("Username is already in use, please select another username");
+            		close();
+            		return false;
+            	}
+            }
+            
+            appendEvent(username + " has connected");	
+            
+            for(int i = 0; i < events.size(); i++) {
+            	if(events.get(i).getMembers().containsKey(username)) {
+            		events.get(i).setTimestamp(new Date());
+                    if (!writeMsg(events.get(i))) {
+                        removeThread(i);
+                        appendEvent("Disconnected Client " + i + " : " + username + " removed from list");
+                    } else {
+                    	appendEvent("Event information sent to user " + username);
+                    }
+            	}
+            }            
+			return true;
+		}
+
+		@Override
 	    public void run() {
 	        boolean loggedIn = true;
 	        //Keep running until LOGOUT

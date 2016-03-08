@@ -12,6 +12,7 @@ public class DateEvent implements Serializable {
 	String title;
 	String description;
 	Integer eventID;
+	Date updatedTimestamp;
 	
 	//0 is invited, 1 is not going, 2 is maybe, 3 is going
 	Map<String, Integer> members = new HashMap<String, Integer>();
@@ -38,6 +39,14 @@ public class DateEvent implements Serializable {
 	
 	public void setStart(Date date) {
 		startDate = date;
+	}
+	
+	public Date getTimestamp() {
+		return updatedTimestamp;
+	}
+	
+	public void setTimestamp(Date date) {
+		updatedTimestamp = date;
 	}
 	
 	public Date getEnd() {
