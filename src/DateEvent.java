@@ -13,16 +13,18 @@ public class DateEvent implements Serializable {
 	String description;
 	Integer eventID;
 	Date updatedTimestamp;
+	String lastSender;
 	
 	//0 is invited, 1 is not going, 2 is maybe, 3 is going
 	Map<String, Integer> members = new HashMap<String, Integer>();
 	
-	public DateEvent(Date start, Date end, String descript, String heading, String starter) {
+	public DateEvent(Date start, Date end, String descript, String heading, String starter, String sender) {
 		startDate = start;
 		endDate = end;
 		description = descript;
 		title = heading;
 		creator = starter;
+		lastSender = sender;
 	}
 	
 	public Integer getID() {
@@ -91,5 +93,13 @@ public class DateEvent implements Serializable {
 	
 	public Integer removeMember(String name) {
 		return members.remove(name);
+	}
+	
+	public String getLastSender() {
+		return lastSender;
+	}
+	
+	public void setLastSender(String sender) {
+		lastSender = sender;
 	}
 }
