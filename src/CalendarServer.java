@@ -95,7 +95,6 @@ public class CalendarServer {
 	
     public void appendEvent(String str) {
         event.append(str + "\n");
-        //event.setCaretPosition(chat.getText().length() - 1);
     }
 	
     private synchronized void removeThread(int index) {
@@ -165,11 +164,12 @@ public class CalendarServer {
 	        } catch (IOException e) {
 	        	appendEvent("Exception creating new Input/output Streams: " + e);
 	            return;
-	        } //catch (ClassNotFoundException e) {}
+	        } 
 
 	        date = new Date().toString() + "\n";
 	    }
 
+	    //Checks to see if a username is a duplicate, if it isn't logs the user in
 	    public boolean checkUsername() throws ClassNotFoundException, IOException {
             // read the username
             username = (String) in.readObject();
@@ -189,6 +189,7 @@ public class CalendarServer {
             	appendEvent("Detected new user. Adding " + username + " to user list.");
             }
             
+            //Send existing events that the user is involved in
             for(int i = 0; i < events.size(); i++) {
             	if(events.get(i).getMembers().containsKey(username)) {
             		events.get(i).setTimestamp(new Date());
@@ -244,7 +245,7 @@ public class CalendarServer {
                 	} else if(received instanceof String) {
                 		writeMembers();
                 	} else {
-                		//appendEvent("Error: Received object of type " + received.getClass().getName());
+                		appendEvent("Error: Received object of type " + received.getClass().getName());
                 	}
 	            } catch (IOException e) {
 	            	appendEvent(username + " Exception reading Streams: " + e);
@@ -277,7 +278,7 @@ public class CalendarServer {
 	        } catch (Exception e) {}
 	    }
 
-	    //Write message to the Client output stream
+	    //Write a DateEvent to the Client output stream
 	    private boolean writeMsg(DateEvent eventToSend) {
 	        // if Client is still connected send the message to it
 	        if(!socket.isConnected()) {
@@ -299,6 +300,7 @@ public class CalendarServer {
 	        return true;
 	    }
 
+	    //Write a userlist to the Client output stream
 	    private boolean writeMembers() {
 	        // if Client is still connected send the message to it
 	        if(!socket.isConnected()) {
@@ -310,10 +312,6 @@ public class CalendarServer {
 	        
         	// write the message to the stream
 	        try {
-	        	//ArrayList<String> usernameList = new ArrayList<>();
-	        	//for(ClientThread clients : list) {
-	        	//	usernameList.add(clients.username);
-	        	//}
 	            out.writeObject(usernameList);
 	        } catch(IOException e) {
 	            // if an error occurs, do not abort just inform the user
