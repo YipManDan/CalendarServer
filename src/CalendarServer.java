@@ -18,9 +18,10 @@ public class CalendarServer {
     private JFrame mainFrame;
     private JTextArea event;
     private static ServerSocket serverSocket;
-    private static int port = 8080; //default port number is 8080
+    private static int port = 9001; //default port number
     private boolean continueServer;
     private ArrayList<ClientThread> list;
+    private ArrayList<String> usernameList;
     private ArrayList<DateEvent> events;
     private static int uniqueID;
     private static int eventID;
@@ -38,6 +39,7 @@ public class CalendarServer {
         mainFrame.setVisible(true);
         continueServer = true;
         list = new ArrayList<ClientThread>();
+        usernameList = new ArrayList<String>();
         events = new ArrayList<DateEvent>();
         uniqueID = 0;
         eventID = 0;
@@ -93,7 +95,6 @@ public class CalendarServer {
 	
     public void appendEvent(String str) {
         event.append(str + "\n");
-        //event.setCaretPosition(chat.getText().length() - 1);
     }
 	
     private synchronized void removeThread(int index) {
@@ -134,7 +135,7 @@ public class CalendarServer {
     }   
     
 	public static void main(String[] args) {
-		CalendarServer cs = new CalendarServer(8080);
+		CalendarServer cs = new CalendarServer(9001);
 		cs.start();
 	}
 	
@@ -163,11 +164,12 @@ public class CalendarServer {
 	        } catch (IOException e) {
 	        	appendEvent("Exception creating new Input/output Streams: " + e);
 	            return;
-	        } //catch (ClassNotFoundException e) {}
+	        } 
 
 	        date = new Date().toString() + "\n";
 	    }
 
+	    //Checks to see if a username is a duplicate, if it isn't logs the user in
 	    public boolean checkUsername() throws ClassNotFoundException, IOException {
             // read the username
             username = (String) in.readObject();
@@ -180,8 +182,14 @@ public class CalendarServer {
             	}
             }
             
-            appendEvent(username + " has connected");	
+            appendEvent(username + " has connected.");	
             
+            if(!usernameList.contains(username)) {
+            	usernameList.add(username);
+            	appendEvent("Detected new user. Adding " + username + " to user list.");
+            }
+            
+            //Send existing events that the user is involved in
             for(int i = 0; i < events.size(); i++) {
             	if(events.get(i).getMembers().containsKey(username)) {
             		events.get(i).setTimestamp(new Date());
@@ -198,13 +206,47 @@ public class CalendarServer {
 
 		@Override
 	    public void run() {
+			appendEvent("Now listening for the user " + username);
 	        boolean loggedIn = true;
 	        //Keep running until LOGOUT
 	        while(loggedIn) {
 	            // read a DateEvent object
 	            try {
-	            	incomingEvent = (DateEvent) in.readObject();
-	            	appendEvent("Receiving event information from " + username);
+	            	Object received = in.readObject();
+
+                	if(received instanceof DateEvent) {	            	
+		            	incomingEvent = (DateEvent) received;
+		            	appendEvent("Receiving event information from " + username);
+		            	
+			            //Event does not exist on the server because id is null, add it
+			            if(incomingEvent.getID() == null) {
+			            	incomingEvent.setID(++eventID);
+			            	events.add(incomingEvent);	 
+			            	appendEvent("No eventID found, changing it to " + eventID);
+			            	multicast(incomingEvent);
+			            } else {
+			            	boolean existingEvent = false;
+		            		for(int i = 0; i < events.size(); i++) {
+		            			if(incomingEvent.getID().equals(events.get(i).getID())) {
+		        	            	appendEvent("Found match for eventID" + incomingEvent.getID());
+		            				existingEvent = true;
+		            				events.set(i, incomingEvent);
+		            				break;
+		            			}
+		            		}
+		            		
+		            		//This should never happen, but just in case
+		            		if(!existingEvent) {
+		    	            	events.add(incomingEvent);	           			
+		            		}
+		            		multicast(incomingEvent);
+			            }
+		            	appendEvent("Total number of events stored on server: " + events.size());		            	
+                	} else if(received instanceof String) {
+                		writeMembers();
+                	} else {
+                		appendEvent("Error: Received object of type " + received.getClass().getName());
+                	}
 	            } catch (IOException e) {
 	            	appendEvent(username + " Exception reading Streams: " + e);
 	                break;			
@@ -212,52 +254,7 @@ public class CalendarServer {
 	                break;
 	            }
 	            
-	            //Event does not exist on the server because id is null, add it
-	            if(incomingEvent.getID() == null) {
-	            	incomingEvent.setID(++eventID);
-	            	events.add(incomingEvent);	 
-	            	appendEvent("No eventID found, changing it to " + eventID);
-	            	multicast(incomingEvent);
-	            } else {
-	            	boolean existingEvent = false;
-            		for(int i = 0; i < events.size(); i++) {
-            			if(incomingEvent.getID().equals(events.get(i).getID())) {
-        	            	appendEvent("Found match for eventID" + incomingEvent.getID());
-            				existingEvent = true;
-            				events.set(i, incomingEvent);
-            				break;
-            			}
-            		}
-            		
-            		//This should never happen, but just in case
-            		if(!existingEvent) {
-    	            	events.add(incomingEvent);	           			
-            		}
-            		multicast(incomingEvent);
-	            }
-	            // the messaage part of the ChatMessage
-	            ///String message = cm.getMessage();
 
-	            // Switch on the type of message receive
-	            //switch(cm.getType()) {
-
-	           /* case ChatMessage.MESSAGE:
-	                System.out.println("Message received from " + username);
-	                if(cm.getRecipients().size()==0)
-	                    broadcast(username + ": " + message);
-	                else
-	                    multicast(cm, username, id);
-	                break;
-	            case ChatMessage.LOGOUT:
-	                event(username + " disconnected with a LOGOUT message.");
-	                loggedIn = false;
-	                break;
-	            case ChatMessage.WHOISIN:
-	                System.out.println("WHOISIN received from " + username);
-	                whoIsIn(this);
-	                break;
-	            }*/
-            	appendEvent("Total number of events stored on server: " + events.size());
 	        }
 	        
 	        //Remove self from the arrayList containing the list of connected Clients
@@ -281,7 +278,7 @@ public class CalendarServer {
 	        } catch (Exception e) {}
 	    }
 
-	    //Write message to the Client output stream
+	    //Write a DateEvent to the Client output stream
 	    private boolean writeMsg(DateEvent eventToSend) {
 	        // if Client is still connected send the message to it
 	        if(!socket.isConnected()) {
@@ -302,24 +299,26 @@ public class CalendarServer {
 	        
 	        return true;
 	    }
-	    private boolean writeUser(String msg, int userID, boolean isReceiver) {
+
+	    //Write a userlist to the Client output stream
+	    private boolean writeMembers() {
 	        // if Client is still connected send the message to it
-	        if (!socket.isConnected()) {
+	        if(!socket.isConnected()) {
 	            close();
 	            return false;
-	        }
-	        //ChatMessage cMsg = new ChatMessage(ChatMessage.WHOISIN, msg, new UserId(0, "Server"), isReceiver);
-	        //cMsg.setUserID(userID);
-
-	        // write the message to the stream
-	       /*try {
-	            //out.writeObject(cMsg);
-	        } catch (IOException e) {
+	        }	    	
+	        
+        	appendEvent("Member list request received. Sending to " + username);		            	               		
+	        
+        	// write the message to the stream
+	        try {
+	            out.writeObject(usernameList);
+	        } catch(IOException e) {
 	            // if an error occurs, do not abort just inform the user
 	        	appendEvent("Error sending message to " + username);
 	        	appendEvent(e.toString());
-	        }*/
-
+	        }
+	        
 	        return true;
 	    }
 	}
